@@ -1,78 +1,105 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Yavalath（4で勝ち／3で負け）🎲</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yavalath（4で勝ち／3で負け）</title>
 <style>
-:root{
+:root {
   --grid:#2c3149;
-  --p1:#ffd84d; --p2:#f5f7fb;
-  --hint:#35d1ff6b; --win:#ff4d7a;
-  --text:#eef3ff; --muted:#b7c1da;
+  --p1:#ffd84d;
+  --p2:#f5f7fb;
+  --hint:#35d1ff6b;
+  --win:#ff4d7a;
+  --text:#eef3ff;
 }
 
-/* 全画面化した盤面 */
-body{
-  margin:0;
-  background: radial-gradient(circle at center, #101426 0%, #03050c 100%);
-  color:var(--text);
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #0a0e1a 0%, #010208 100%);
+  color: var(--text);
   font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  overflow:hidden;
 }
 
-.header{
-  position:fixed;
-  top:0; left:0; right:0;
-  z-index:10;
-  padding:6px 12px;
-  text-align:center;
-  font-weight:600;
-  font-size:14px;
-  background:rgba(0,0,0,0.4);
-  backdrop-filter:blur(4px);
-}
-#status{ font-weight:700; margin-top:2px; }
-
-/* 盤全体を中央に配置し、画面の短辺にフィット */
-.stage{
-  width:100vw;
-  height:100vh;
-  margin:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  overflow:hidden;
+/* ヘッダー（上部固定） */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 6px 12px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
 }
 
-#board{
-  width:100vmin;   /* 画面の短辺にフィット */
-  height:100vmin;
-  max-width:100vw;
-  max-height:100vh;
+/* ステータステキスト */
+#status {
+  font-weight: 700;
+  margin-top: 2px;
 }
 
-/* 縦長スマホ：横幅基準にフィット */
-@media (orientation:portrait){
-  #board{ width:100vw; height:100vw; }
-}
-/* 横長PC：縦基準にフィット */
-@media (orientation:landscape){
-  #board{ width:100vh; height:100vh; }
+/* 盤面エリア（余白ゼロで中央配置） */
+.stage {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #111422, #05070c 90%);
 }
 
-.hex{
-  fill:#0d1124;
-  stroke:var(--grid);
-  stroke-width:1.3;
-  cursor:pointer;
+/* 盤面サイズ：画面の短辺いっぱい */
+#board {
+  width: 100vmin;
+  height: 100vmin;
+  max-width: 100vw;
+  max-height: 100vh;
 }
-.hex:hover{filter:brightness(1.2);}
-.stone{pointer-events:none;}
-.stone.p1{fill:var(--p1);}
-.stone.p2{fill:var(--p2);}
-.hint{fill:var(--hint);}
-.win-line{stroke:var(--win);stroke-width:7;stroke-linecap:round;}
+
+/* 縦長スマホ・横長PC両対応 */
+@media (orientation: portrait) {
+  #board {
+    width: 100vw;
+    height: 100vw;
+  }
+}
+@media (orientation: landscape) {
+  #board {
+    width: 100vh;
+    height: 100vh;
+  }
+}
+
+/* セルと石のスタイル */
+.hex {
+  fill: #0d1124;
+  stroke: var(--grid);
+  stroke-width: 1.3;
+  cursor: pointer;
+}
+.hex:hover { filter: brightness(1.2); }
+
+.stone { pointer-events: none; }
+.stone.p1 { fill: var(--p1); }
+.stone.p2 { fill: var(--p2); }
+
+.win-line {
+  stroke: var(--win);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
 </style>
 </head>
 <body>
@@ -84,131 +111,78 @@ body{
 <div class="stage">
   <svg id="board" viewBox="-400 -400 800 800">
     <g id="layer-grid"></g>
-    <g id="layer-hints"></g>
     <g id="layer-stones"></g>
     <g id="layer-effects"></g>
   </svg>
 </div>
 
 <script>
-/*** 盤とルール ***/
-const RADIUS=5, HEX_SIZE=28;
-const DIRS=[[+1,0],[+1,-1],[0,-1],[-1,0],[-1,+1],[0,+1]];
-const keyOf=(q,r)=>`${q},${r}`;
-const axialToPixel=(q,r)=>({x:HEX_SIZE*(Math.sqrt(3)*q+Math.sqrt(3)/2*r), y:HEX_SIZE*(3/2*r)});
-const hexPolygonPoints=(x,y,size)=>{
-  const pts=[];
-  for(let i=0;i<6;i++){const a=(60*i-30)*Math.PI/180;
-    pts.push([x+size*Math.cos(a),y+size*Math.sin(a)]);
-  }
+const RADIUS = 5, HEX_SIZE = 28;
+const DIRS = [[+1,0],[+1,-1],[0,-1],[-1,0],[-1,+1],[0,+1]];
+const key = (q,r) => `${q},${r}`;
+const toXY = (q,r) => ({x:HEX_SIZE*(Math.sqrt(3)*q+Math.sqrt(3)/2*r),y:HEX_SIZE*(3/2*r)});
+const poly = (x,y,s) => {
+  const pts=[];for(let i=0;i<6;i++){const a=(60*i-30)*Math.PI/180;pts.push([x+s*Math.cos(a),y+s*Math.sin(a)]);}
   return pts.map(p=>p.join(",")).join(" ");
 };
 
-const state={cells:new Map(),turn:1,history:[],gameOver:false,lastPlaced:null,winLine:null};
-const boardEl=document.getElementById("board");
+const S={cells:new Map(),turn:1,gameOver:false};
 const gGrid=document.getElementById("layer-grid");
-const gHints=document.getElementById("layer-hints");
 const gStones=document.getElementById("layer-stones");
 const gFx=document.getElementById("layer-effects");
-const statusEl=document.getElementById("status");
+const status=document.getElementById("status");
 
-function setStatus(msg){
-  if(msg){statusEl.textContent=msg;return;}
-  statusEl.textContent=state.gameOver?"ゲーム終了":`手番: ${state.turn===1?"黄🟡":"白⚪️"}`;
-}
+function msg(t){status.textContent=t||`手番: ${S.turn===1?"黄🟡":"白⚪️"}`;}
 
-function generateBoard(){
-  gGrid.innerHTML=gHints.innerHTML=gStones.innerHTML=gFx.innerHTML="";
-  state.cells.clear(); state.turn=1; state.history=[]; state.gameOver=false; state.winLine=null;
-
+function init(){
+  gGrid.innerHTML=gStones.innerHTML=gFx.innerHTML="";
+  S.cells.clear();S.turn=1;S.gameOver=false;
   for(let q=-RADIUS+1;q<=RADIUS-1;q++){
     const r1=Math.max(-RADIUS+1,-q-RADIUS+1);
     const r2=Math.min(RADIUS-1,-q+RADIUS-1);
     for(let r=r1;r<=r2;r++){
-      const {x,y}=axialToPixel(q,r); const k=keyOf(q,r);
-      const hex=document.createElementNS("http://www.w3.org/2000/svg","polygon");
-      hex.setAttribute("points",hexPolygonPoints(x,y,HEX_SIZE*0.98));
-      hex.classList.add("hex"); hex.dataset.key=k; hex.addEventListener("click",onPlace);
-      gGrid.appendChild(hex);
-
-      const stone=document.createElementNS("http://www.w3.org/2000/svg","circle");
-      stone.setAttribute("cx",x); stone.setAttribute("cy",y);
-      stone.setAttribute("r",HEX_SIZE*0.55); stone.setAttribute("opacity","0");
-      stone.classList.add("stone"); stone.dataset.key=k;
-      gStones.appendChild(stone);
-
-      state.cells.set(k,{q,r,x,y,stone:0,stoneEl:stone,hexEl:hex,hintEl:null});
+      const {x,y}=toXY(q,r);const k=key(q,r);
+      const h=document.createElementNS("http://www.w3.org/2000/svg","polygon");
+      h.setAttribute("points",poly(x,y,HEX_SIZE*0.98));
+      h.classList.add("hex");h.dataset.k=k;h.onclick=onClick;gGrid.appendChild(h);
+      const s=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      s.setAttribute("cx",x);s.setAttribute("cy",y);s.setAttribute("r",HEX_SIZE*0.55);
+      s.setAttribute("opacity","0");s.classList.add("stone");gStones.appendChild(s);
+      S.cells.set(k,{q,r,stone:0,hex:h,el:s});
     }
   }
-  setStatus();
+  msg();
 }
 
-function onPlace(e){
-  if(state.gameOver) return;
-  const k=e.currentTarget.dataset.key;
-  const c=state.cells.get(k);
-  if(!c || c.stone!==0) return;
-  placeStone(k,state.turn);
-  const result=evaluateAfterMove(c.q,c.r,state.turn);
-  if(result.win){
-    drawWinLine(result.line);
-    state.gameOver=true;
-    setStatus(`🎯 勝ち！（${state.turn===1?"黄":"白"}の4連）`);
-  }else if(result.lose){
-    state.gameOver=true;
-    setStatus(`💥 負け…（${state.turn===1?"黄":"白"}が3連を作成）`);
-  }else{
-    state.turn=3-state.turn; setStatus();
-  }
+function onClick(e){
+  if(S.gameOver)return;
+  const k=e.target.dataset.k,c=S.cells.get(k);
+  if(!c||c.stone)return;
+  c.stone=S.turn;c.el.setAttribute("opacity","1");c.el.classList.add(S.turn===1?"p1":"p2");
+  const res=judge(c.q,c.r,S.turn);
+  if(res.win){drawLine(res.line);msg(`🎯 ${S.turn===1?"黄":"白"}の勝ち！`);S.gameOver=true;}
+  else if(res.lose){msg(`💥 ${S.turn===1?"黄":"白"}が3連で負け`);S.gameOver=true;}
+  else{S.turn=3-S.turn;msg();}
 }
 
-function placeStone(k,player){
-  const c=state.cells.get(k);
-  c.stone=player;
-  c.stoneEl.setAttribute("opacity","1");
-  c.stoneEl.classList.toggle("p1",player===1);
-  c.stoneEl.classList.toggle("p2",player===2);
-  state.history.push({key:k});
-  state.lastPlaced=k;
-}
-
-function countDir(q,r,dq,dr,player){
-  let n=0;
-  while(true){
-    q+=dq; r+=dr;
-    const c=state.cells.get(keyOf(q,r));
-    if(c && c.stone===player) n++; else break;
-  }
-  return n;
-}
-
-function evaluateAfterMove(q,r,player){
-  let win=false, lose=false, winLine=null;
+function cnt(q,r,dq,dr,p){let n=0;while(true){q+=dq;r+=dr;const c=S.cells.get(key(q,r));if(c&&c.stone===p)n++;else break;}return n;}
+function judge(q,r,p){
+  let win=false,lose=false,line=null;
   for(let i=0;i<3;i++){
-    const [dq1,dr1]=DIRS[i],[dq2,dr2]=DIRS[i+3];
-    const L1=countDir(q,r,dq1,dr1,player);
-    const L2=countDir(q,r,dq2,dr2,player);
-    const total=1+L1+L2;
-    if(total>=4){
-      win=true;
-      const s=axialToPixel(q-dq1*L1,r-dr1*L1);
-      const e=axialToPixel(q+dq2*L2,r+dr2*L2);
-      winLine=[s,e];
-    }else if(total===3){
-      lose=true;
-    }
+    const [dq,dr]=DIRS[i],[dq2,dr2]=DIRS[i+3];
+    const L1=cnt(q,r,dq,dr,p),L2=cnt(q,r,dq2,dr2,p),t=1+L1+L2;
+    if(t>=4){win=true;const s=toXY(q-dq*L1,r-dr*L1),e=toXY(q+dq2*L2,r+dr2*L2);line=[s,e];}
+    else if(t===3)lose=true;
   }
-  return {win, lose:(!win&&lose), line:winLine};
+  return {win,lose:!win&&lose,line};
 }
-
-function drawWinLine(line){
+function drawLine(line){
   const L=document.createElementNS("http://www.w3.org/2000/svg","line");
-  L.setAttribute("x1",line[0].x); L.setAttribute("y1",line[0].y);
-  L.setAttribute("x2",line[1].x); L.setAttribute("y2",line[1].y);
-  L.classList.add("win-line"); gFx.appendChild(L); state.winLine=L;
+  L.setAttribute("x1",line[0].x);L.setAttribute("y1",line[0].y);
+  L.setAttribute("x2",line[1].x);L.setAttribute("y2",line[1].y);
+  L.classList.add("win-line");gFx.appendChild(L);
 }
-
-generateBoard();
+init();
 </script>
 </body>
 </html>
